@@ -1,0 +1,50 @@
+name: build
+
+# Builds the Dockerfile, the CI image of the unys GitOps repos, and pushes it to
+# ghcr.io/legleo/ci-validate on main. On PRs it is only built, to check it.
+on:
+  push:
+    branches: [main]
+    paths: [Dockerfile, .github/workflows/build.yaml]
+  pull_request:
+    branches: [main]
+    paths: [Dockerfile, .github/workflows/build.yaml]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/legleo/ci-validate
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # push to ghcr
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Tag 1.<run number>: a new version at every build, which Renovate proposes in the repos
+      # that use the image (pinned there as tag@sha256:digest)
+      - name: Build
+        run: |
+          docker build --pull \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.description=CI image of the unys GitOps repos: kubectl, kubeconform, pluto, gitleaks, flate, promtool, gh" \
+            -t "$IMAGE:1.${{ github.run_number }}" .
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:1.${{ github.run_number }}"
+          docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:1.${{ github.run_number }}" | tee -a "$GITHUB_STEP_SUMMARY"
