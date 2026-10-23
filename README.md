@@ -28,4 +28,5 @@ container:
 ```
 
 The versions are the `ARG`s of the `Dockerfile`. `KUBE_VERSION` follows the cluster and is updated
-by hand; the others carry a `# renovate:` comment.
+by hand; the others carry a `# renovate:` comment, read by the regex manager of `renovate.json`.
+Renovate is the one of `unys-k8s` (in-cluster, `legleo/unys-k8s` on GitHub), with its waiting periods.
